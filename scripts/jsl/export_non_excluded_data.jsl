@@ -1,0 +1,107 @@
+// Export Non-Excluded Data to CSV
+// 匯出未被排除的資料為 CSV 檔案
+// Editor: SC Hsiao
+// Date: 2025-01-XX
+
+// 檢查是否有開啟的資料表
+if (N Table() == 0,
+    Throw("請先在 JMP 中開啟資料表")
+);
+
+// 獲取當前資料表
+dt = Current Data Table();
+
+// 獲取資料表名稱
+table_name = dt << Get Name;
+
+// 獲取所有未被排除的列
+excluded_rows = dt << Get Excluded Rows;
+all_rows = 1 :: N Rows(dt);
+
+// 找出未被排除的列
+If(N Items(excluded_rows) == 0,
+    row_states = all_rows;
+,
+    row_states = {};
+    For(i = 1, i <= N Rows(dt), i++,
+        is_excluded = 0;
+        For(j = 1, j <= N Items(excluded_rows), j++,
+            If(excluded_rows[j] == i,
+                is_excluded = 1;
+                Break();
+            );
+        );
+        If(is_excluded == 0,
+            Insert Into(row_states, i);
+        );
+    );
+);
+
+// 檢查是否有資料可匯出
+if (N Items(row_states) == 0,
+    Throw("所有資料列都被排除了，沒有資料可以匯出")
+);
+
+// 取得當前 JMP 檔案的完整路徑
+jmp_file_path = dt << Get Path;
+
+// 檢查是否能取得檔案路徑（如果檔案尚未儲存會是空的）
+If(jmp_file_path == "",
+    // 如果檔案未儲存，存到 Documents
+    folder_path = "$DOCUMENTS/";
+    Show("⚠️ JMP 檔案尚未儲存，將存到 Documents 資料夾");
+,
+    // 從完整路徑中提取資料夾路徑
+    // 找到最後一個 "/" 的位置
+    last_slash_pos = 0;
+    For(i = 1, i <= Length(jmp_file_path), i++,
+        If(Substr(jmp_file_path, i, 1) == "/",
+            last_slash_pos = i;
+        );
+    );
+    
+    // 提取資料夾路徑（包含最後的 "/"）
+    folder_path = Substr(jmp_file_path, 1, last_slash_pos);
+    Show("📁 JMP 檔案位於: " || folder_path);
+);
+
+// 生成檔案名稱
+clean_table_name = Substitute(table_name, ".jmp", "");
+clean_table_name = Substitute(clean_table_name, " ", "_");
+output_filename = clean_table_name || "_NonExcluded.csv";
+
+// 組合完整的儲存路徑
+save_path = folder_path || output_filename;
+
+Show("💾 檔案將儲存到: " || save_path);
+
+// 創建只包含未排除資料的新資料表（不顯示視窗）
+dt_filtered = dt << Subset(
+    Output Table Name("temp_filtered"),
+    Rows(row_states),
+    Selected Columns Only(0),  // 包含所有欄位
+    Invisible  // 不顯示新資料表視窗
+);
+
+// 直接匯出為 CSV
+dt_filtered << Save As(
+    save_path,
+    "CSV"
+);
+
+// 關閉臨時資料表
+dt_filtered << Close Window;
+
+// 只顯示最重要的成功訊息
+Show("✅ 成功！檔案已儲存到: " || save_path);
+
+// 顯示完成對話框
+Dialog(
+    Title("匯出完成"),
+    Text Box("成功匯出未被排除的資料!"),
+    Text Box(""),
+    Text Box("檔案位置: " || save_path),
+    Text Box("資料列數: " || Char(N Items(row_states)) || " / " || Char(N Rows(dt))),
+    Text Box(""),
+    Text Box("現在可以在 Best Fit(beta) 中使用此 CSV 檔案進行分析")
+);

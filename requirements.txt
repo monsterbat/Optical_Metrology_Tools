@@ -1,0 +1,35 @@
+# 主要依賴
+tkinter==0.1.0  # 注意：tkinter通常是Python自帶的，不需要單獨安裝
+pillow==11.2.1  # 用於圖像處理
+pandas==2.2.3  # 資料處理
+openpyxl==3.1.2  # Excel 檔案讀取
+
+# 科學計算和統計分析依賴
+numpy==1.26.4  # 數值計算
+scipy==1.14.1  # 科學計算和統計分析
+matplotlib==3.8.2  # 繪圖庫
+seaborn>=0.11.0  # 統計數據視覺化（用於美化 Box Plot）
+scikit-learn==1.3.2  # 機器學習庫（用於混合模型）
+
+# PyInstaller相關
+pyinstaller==6.13.0
+pyinstaller-hooks-contrib==2025.4
+altgraph==0.17.4
+macholib==1.16.3
+packaging==25.0
+
+# 系統相關
+psutil==7.0.0  # 進程和系統實用程序
+
+# macOS特定依賴
+pyobjc-core==11.0
+pyobjc-framework-Cocoa==11.0
+pyobjc-framework-Quartz==11.0
+rubicon-objc==0.5.0
+
+# Google Drive 支援
+gdown==5.2.0  # 下載Google Drive檔案
+requests==2.32.3  # HTTP請求
+
+# 其他可能的依賴
+pyperclip==1.9.0  # 剪貼板操作

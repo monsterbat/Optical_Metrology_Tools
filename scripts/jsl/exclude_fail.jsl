@@ -1,0 +1,45 @@
+// Step 1: 開啟檔案
+filePath = Pick File("Choose JMP file", {"JMP Files|jmp"});
+dt = Open(filePath);
+
+// Step 2: 獲取所有欄位名稱
+columnNames = {};
+For(i = 1, i <= N Col(dt), i++,
+    Insert Into(columnNames, Column(dt, i) << Get Name);
+);
+
+// Step 3: 建立選擇欄位的下拉式選單
+lb_col = List Box(columnNames, <<Set Width(300), <<Set N Lines(10));
+nw = New Window("Select Judg Column",
+    V List Box(
+        Text Box("請選擇判定欄位（例如 Judg）："),
+        lb_col,
+        Button Box("執行排除 Fail",
+            sel_Judg = lb_col << Get Selected;
+            If(N Items(sel_Judg) == 0,
+                Throw("請選擇一個欄位")
+            );
+
+            colName = sel_Judg[1];
+
+            // 找到 Fail 的 row index
+            failRows = {};
+            For(i = 1, i <= N Rows(dt), i++,
+                If(Uppercase(Char(dt[i, colName])) == "FAIL",
+                    Insert Into(failRows, i)
+                );
+            );
+
+            // 如果有找到 Fail 的列，就排除
+            If(N Items(failRows) > 0,
+                dt << Select Rows(failRows);
+                dt << Exclude;
+                Write("✅ 已排除 ", N Items(failRows), " 筆資料（", colName, " = FAIL）");
+            ,
+                Write("✅ 未找到 ", colName, " = FAIL 的資料");
+            );
+
+            nw << Close Window;
+        )
+    )
+);

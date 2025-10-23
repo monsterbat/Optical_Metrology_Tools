@@ -1,0 +1,125 @@
+﻿// JMP report generate (Best fit) JSL script
+// Editor : SC Hsiao
+// Update date : 2025/05/05
+// Version V 0.1
+//---------------------------------------------------------------
+//-----------------------< ⬇ JSL Best fit code ⬇ >---------------------------
+
+myVars = {
+	:Variable_A
+};
+
+processVarsExpr = Expr(Process Variables());
+For(i = 1, i <= N Items(myVars), i++,
+    Insert Into(processVarsExpr, Name Expr(myVars[i]));
+);
+
+//------------------------------------------------------------------------------
+
+// -----------------------< ⬇ Process Capability ⬇ >---------------------------
+
+	// 2. Use Substitute to correctly inject variables
+	pc_r1 = Eval(
+		Substitute(
+			Expr(
+				Process Capability(
+					_processVars_,
+					Moving Range Method(Average of Moving Ranges),
+					Individual Detail Reports(1),
+					Capability Box Plots(0),
+					Overall Sigma Summary Report(1),
+					Goal Plot(0),
+					Capability Index Plot(0),
+					Process Performance Plot(0),
+					SendToReport(
+						//
+						Dispatch( {}, "Individual Detail Reports", OutlineBox, {Close( 1 )} ),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Process",
+							StringColBox,
+							{Numerical Order( 0 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Sample Mean",
+							NumberColBox,
+							{Set Format( "Fixed Dec", 8, 3 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Sample Std Dev",
+							NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Overall Sigma",
+							NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Stability Index",
+							NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Ppk", NumberColBox,
+							{Set Format( "Fixed Dec", 6, 2 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Ppl", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Ppu", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Pp", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Cpm", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Expected % Outside",
+							NumberColBox,
+							{Set Format( "Fixed Dec", 9, 2 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"},
+							"Expected % Below LSL", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"},
+							"Expected % Above USL", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Observed % Outside",
+							NumberColBox,
+							{Set Format( "Fixed Dec", 9, 2 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"},
+							"Observed % Below LSL", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"},
+							"Observed % Above USL", NumberColBox,
+							{Visibility( "Collapse" )}
+						)
+					)
+				)
+			),
+			Expr(_processVars_), Name Expr(processVarsExpr)
+		)
+	);
+
+//-----------------------< ⬇ Report Generate ⬇ >---------------------------
+	pcReport = Report(pc_r1);
+	
+
+	
+	base_name = "pcg"; 
+
+	//  Generate a filename with date
+	today_str = Format(Today(), "yyyymmdd");
+	report_name = base_name || "_ProcessReport_" || today_str;
+	
+	
+
+	// Let the user choose the save directory(MAC)
+	save_dir = Pick Directory("Please select a location to save the report", "$DESKTOP");
+	If(Is Empty(save_dir),
+		Throw("User canceled the save location selection");
+	);
+	// Modify the report output line
+	pcReport << Save Interactive HTML(save_dir || report_name || ".html");
+	pcReport << Save PDF(save_dir || report_name || ".pdf");
+	pcReport << Save Picture(save_dir || report_name || ".png");
+	pcReport << Save Presentation(save_dir || report_name || ".pptx");

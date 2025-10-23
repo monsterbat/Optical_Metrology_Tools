@@ -1,0 +1,8 @@
+{
+  "Example": [
+    "Variable_A",
+    "Variable_B",
+    "Variable_C"
+  ],
+  "_comment": "This file stores variable preset groups for analysis. Edit this file to add or modify preset combinations."
+}

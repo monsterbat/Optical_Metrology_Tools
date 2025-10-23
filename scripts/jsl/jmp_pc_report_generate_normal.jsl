@@ -1,0 +1,199 @@
+﻿// JMP report generate (Normal distribution) JSL script
+// Editor : SC Hsiao
+// Update date : 2025/05/05
+// Version V 1.1
+// Description: Process Normal distribution analysis from currently active data table
+// Note: Requires data file to be opened first via "Open Data" button
+//---------------------------------------------------------------
+//-----------------------< ⬇ JSL Normal distribution code ⬇ >---------------------------
+
+	// Step 0: Use current active data table (no need to pick file)
+	// Get the current data table
+	dt = Current Data Table();
+
+	// Check if there's an active data table
+	If(Is Empty(dt),
+		New Window("Error", <<Modal,
+			V List Box(
+				Text Box("No data table is currently open. Please open a data file first."),
+				Button Box("OK", Current Window() << Close Window)
+			)
+		);
+		Stop();
+	);
+
+	// Display current data table information
+	table_name = dt << Get Name;
+	Write("✅ Processing data table: ", table_name);
+	Write("   Rows: ", N Rows(dt), ", Columns: ", N Col(dt));
+
+	// Fetch all column names
+	columnNames = {};
+	For(i = 1, i <= N Col(dt), i++,
+		Insert Into(columnNames, Column(dt, i) << Get Name);
+	);
+
+	// Create a multi-selection list box (allow Shift/Ctrl selection)
+	lb_columns = List Box(
+		columnNames,
+		<<Set Max Selected(N Items(columnNames)),
+		<<Set Width(400),     // ✅ 設定寬度（例如400像素）
+		<<Set Height(300)     // ✅ 設定高度（例如300像素）
+	);
+	
+	// Create GUI window
+	nw = New Window("Normal Distribution Analysis - " || table_name,
+		V List Box(
+			Text Box("Processing file: " || table_name),
+			Text Box("Rows: " || Char(N Rows(dt)) || ", Columns: " || Char(N Col(dt))),
+			Spacer Box(Size(1, 10)),
+			Text Box("Please select columns (use Shift/Ctrl to select multiple):"),
+			lb_columns,
+			
+			Button Box("Confirm Selection",
+				// Fetch selected column names
+				selected = lb_columns << Get Selected;
+				
+				// Convert selected column names into JSL matrix format
+				myVars = "{";
+				For(i = 1, i <= N Items(selected), i++,
+					myVars = myVars || "\t:" || selected[i];
+					If(i < N Items(selected),
+						myVars = myVars || ",";
+					);
+					myVars = myVars || "\n";
+				);
+				myVars = myVars || "}";
+				
+				
+				// Convert selected column names into actual JSL matrix
+				myVarsExpr = Parse("{" || Concat Items(selected, ", :") || "}");
+				myVars = Eval(myVarsExpr);
+				
+				// Close selection window
+				nw << Close Window;
+				Run Analysis(myVars);
+			)
+		)
+	);
+
+	// Define analysis function
+	Run Analysis = Function({myVars},
+	// 1. Dynamically build Process Variables expression
+	processVarsExpr = Expr(Process Variables());
+	For(i = 1, i <= N Items(myVars), i++,
+		Insert Into(processVarsExpr, Name Expr(myVars[i]));
+	);
+//------------------------------------------------------------------------------
+
+// -----------------------< ⬇ Process Capability ⬇ >---------------------------
+
+	// 2. Use Substitute to correctly inject variables
+	pc_r1 = Eval(
+		Substitute(
+			Expr(
+				Process Capability(
+					_processVars_,
+					Moving Range Method(Average of Moving Ranges),
+					Individual Detail Reports(1),
+					Capability Box Plots(0),
+					Overall Sigma Summary Report(1),
+					Goal Plot(0),
+					Capability Index Plot(0),
+					Process Performance Plot(0),
+					SendToReport(
+						//
+						Dispatch( {}, "Individual Detail Reports", OutlineBox, {Close( 1 )} ),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Process",
+							StringColBox,
+							{Numerical Order( 0 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Sample Mean",
+							NumberColBox,
+							{Set Format( "Fixed Dec", 8, 3 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Sample Std Dev",
+							NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Overall Sigma",
+							NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Stability Index",
+							NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Ppk", NumberColBox,
+							{Set Format( "Fixed Dec", 6, 2 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Ppl", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Ppu", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Pp", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Cpm", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Expected % Outside",
+							NumberColBox,
+							{Set Format( "Fixed Dec", 9, 2 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"},
+							"Expected % Below LSL", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"},
+							"Expected % Above USL", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"}, "Observed % Outside",
+							NumberColBox,
+							{Set Format( "Fixed Dec", 9, 2 )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"},
+							"Observed % Below LSL", NumberColBox,
+							{Visibility( "Collapse" )}
+						),
+						Dispatch( {"Overall Sigma Capability Summary Report"},
+							"Observed % Above USL", NumberColBox,
+							{Visibility( "Collapse" )}
+						)
+					)
+				)
+			),
+			Expr(_processVars_), Name Expr(processVarsExpr)
+		)
+	);
+
+//-----------------------< ⬇ Report Generate ⬇ >---------------------------
+	pcReport = Report(pc_r1);
+	
+
+	// Use table name as base filename
+	base_name = table_name;
+	// Remove file extension if present using Substitute function
+	base_name = Substitute(base_name, ".jmp", "");
+
+	//  Generate a filename with date
+	today_str = Format(Today(), "yyyymmdd");
+	report_name = base_name || "_NormalReport_" || today_str;
+	
+	
+
+	// Let the user choose the save directory
+	save_dir = Pick Directory("Please select a location to save the report", "$DESKTOP");
+	If(Is Empty(save_dir),
+		Throw("User canceled the save location selection");
+	);
+
+	// Generate report files
+	pcReport << Save Interactive HTML(save_dir || report_name || ".html");
+	pcReport << Save PDF(save_dir || report_name || ".pdf");
+	pcReport << Save Picture(save_dir || report_name || ".png");
+	pcReport << Save Presentation(save_dir || report_name || ".pptx");
+)

@@ -1,0 +1,344 @@
+﻿// JMP Duplicate Process JSL Script
+// Editor: SC Hsiao
+// Update date : 2025/01/18
+// Version V 1.5
+// ============================================================================
+// PURPOSE: Remove duplicate records using AAB Rule (sorted by date)
+// ============================================================================
+
+Names Default To Here(1);
+
+// 1. Use current active data table (no need to pick file)
+// Get the current data table
+dt = Current Data Table();
+
+// Check if there's an active data table
+If(Is Empty(dt),
+    New Window("Error", <<Modal,
+        V List Box(
+            Text Box("No data table is currently open. Please open a data file first."),
+            Button Box("OK", Current Window() << Close Window)
+        )
+    );
+    Stop();
+);
+
+// Display current data table information
+table_name = dt << Get Name;
+Write("✅ Processing data table: ", table_name);
+Write("   Rows: ", N Rows(dt), ", Columns: ", N Col(dt));
+
+// Step 2: Fetch all column names
+columnNames = {};
+For(i = 1, i <= N Col(dt), i++,
+    Insert Into(columnNames, Column(dt, i) << Get Name);
+);
+
+// Step 3: Create three dropdowns for SN, Judge, and Date
+lb_SN = Combo Box(columnNames);
+lb_Judge = Combo Box(columnNames);
+lb_Date = Combo Box(columnNames);
+
+// Create GUI window
+nw = New Window("Duplicate Process - " || table_name,
+    V List Box(
+        Text Box("Processing file: "),
+        Text Box(table_name),
+        //Text Box("Rows: " || Char(N Rows(dt)) || ", Columns: " || Char(N Col(dt))),
+        Spacer Box(Size(1, 15)),
+        
+        // AAB Rule explanation
+        Text Box("Final result base on AAB judgment (sorted by date)", <<Set Font Size(12), <<Set Font Style("Bold")),
+        Spacer Box(Size(1, 15)),
+        
+        Text Box("Select SN column:", <<Set Font Style("Bold")),
+        lb_SN,
+        Spacer Box(Size(1, 5)),
+        Text Box("Select Judge column:", <<Set Font Style("Bold")),
+        lb_Judge,
+        Spacer Box(Size(1, 5)),
+        Text Box("Select Date column (format: YYYYMMDD-HHMMSS):", <<Set Font Style("Bold")),
+        lb_Date,
+        Button Box("Next",
+            sn_col_name = lb_SN << Get Selected;
+            Judge_col_name = lb_Judge << Get Selected;
+            date_col_name = lb_Date << Get Selected;
+            
+            If(Is Missing(sn_col_name) | Is Missing(Judge_col_name) | Is Missing(date_col_name),
+                New Window("Error", <<Modal,
+                    V List Box(
+                        Text Box("Please select SN, Judge, and Date columns"),
+                        Button Box("OK", Current Window() << Close Window)
+                    )
+                );
+                Stop();
+            );
+            
+            // Get unique values from Judge column
+            judge_col = Column(dt, Judge_col_name);
+            unique_values = {};
+            For(i = 1, i <= N Rows(dt), i++,
+                val = Char(judge_col[i]);
+                If(!Contains(unique_values, val),
+                    Insert Into(unique_values, val);
+                );
+            );
+            
+            // Create dialog for PASS/FAIL mapping
+            pass_values = {};
+            fail_values = {};
+            mapping_completed = 0;
+            
+            nw_mapping = New Window("Define PASS/FAIL Values for AAB Rule", <<Modal,
+                V List Box(
+                    Text Box("Final result base on AAB judgment", <<Set Font Style("Bold")),
+                    Text Box("Please define PASS and FAIL below"),
+                    Spacer Box(Size(1, 10)),
+
+                    Text Box("Select values that represent PASS:", <<Set Font Style("Bold")),
+                    lb_pass = List Box(unique_values, Max Selected(N Items(unique_values))),
+                    Spacer Box(Size(1, 10)),
+                    Text Box("Select values that represent FAIL:", <<Set Font Style("Bold")),
+                    lb_fail = List Box(unique_values, Max Selected(N Items(unique_values))),
+                    Spacer Box(Size(1, 10)),
+                    H List Box(
+                        Button Box("Exclude duplicate",
+                            // Get selected values
+                            temp_pass = lb_pass << Get Selected;
+                            temp_fail = lb_fail << Get Selected;
+                            
+                            // Validation
+                            If(N Items(temp_pass) == 0 | N Items(temp_fail) == 0,
+                                New Window("Error", <<Modal,
+                                    V List Box(
+                                        Text Box("Please select at least one value for both PASS and FAIL"),
+                                        Button Box("OK", Current Window() << Close Window)
+                                    )
+                                );
+                                Stop();
+                            );
+                            
+                            // Check for overlap
+                            overlap = {};
+                            For(idx = 1, idx <= N Items(temp_pass), idx++,
+                                If(Contains(temp_fail, temp_pass[idx]),
+                                    Insert Into(overlap, temp_pass[idx]);
+                                );
+                            );
+                            
+                            If(N Items(overlap) > 0,
+                                New Window("Error", <<Modal,
+                                    V List Box(
+                                        Text Box("Value(s) cannot be both PASS and FAIL: " || Concat Items(overlap, ", ")),
+                                        Button Box("OK", Current Window() << Close Window)
+                                    )
+                                );
+                                Stop();
+                            );
+                            
+                            // If validation passes, assign values
+                            pass_values = temp_pass;
+                            fail_values = temp_fail;
+                            mapping_completed = 1;
+                            Current Window() << Close Window;
+                        ),
+                        Button Box("Cancel", 
+                            mapping_completed = 0;
+                            Current Window() << Close Window;
+                        )
+                    )
+                )
+            );
+            
+            // Check if mapping was completed
+            If(mapping_completed == 0,
+                New Window("Cancelled", <<Modal,
+                    V List Box(
+                        Text Box("PASS/FAIL mapping was cancelled. Process stopped."),
+                        Button Box("OK", Current Window() << Close Window)
+                    )
+                );
+                nw << Close Window;
+                Stop();
+            );
+            
+            // Create new column if not exist
+            If( !Contains( dt << Get Column Names(), "Duplicate" ),
+                dt << New Column("Duplicate", Numeric, Continuous);
+            );
+            
+            // Sort by SN column first, then by Date column to ensure proper duplicate numbering
+            dt << Sort(By(Column(dt, sn_col_name), Column(dt, date_col_name)), Replace Table);
+            
+            // Use associative array to track duplicates
+            count_dict = Associative Array();
+            
+            For(i = 1, i <= N Rows(dt), i++,
+                current_serial = dt[i, sn_col_name];
+
+                If(Contains(count_dict, current_serial),   
+                    count_dict[current_serial] += 1;
+                ,
+                    count_dict[current_serial] = 1;
+                );
+                dt[i, "Duplicate"] = count_dict[current_serial];
+            );
+
+            //***************************************************
+            // Create new column if not exist
+            If( !Contains( dt << Get Column Names(), "Duplicate_G" ),
+                dt << New Column("Duplicate_G", Numeric, Continuous);
+            );
+
+            For(i = 1, i <= N Rows(dt), i++,
+                current_serial_G = dt[i, sn_col_name];//
+                duplicate_number = dt[i, "Duplicate"];                
+                judge_val = Char(dt[i, Judge_col_name]);
+                
+                // Determine if current value is PASS or FAIL based on user selection
+                is_pass = Contains(pass_values, judge_val);
+                is_fail = Contains(fail_values, judge_val);
+
+                // Duplicate 1
+                If(duplicate_number ==1 & is_pass,
+                    Column(dt, "Duplicate_G")[i] = "Done";
+
+                );
+                If(duplicate_number ==1 & is_fail,
+                    Column(dt, "Duplicate_G")[i] = "Unclear";
+                ); 
+                // Duplicate 2               
+                If(duplicate_number == 2,
+                    column_name_SN = sn_col_name;
+                    target_value_SN = current_serial_G;
+                    column_data_SN = Column(dt, column_name_SN) << Get As Matrix;                    
+                    row_numbers_SN = Loc(column_data_SN, target_value_SN);                   
+
+                    column_name_Duplicate = "Duplicate";
+                    target_value_Duplicate = 1;
+                    column_data_Duplicate = Column(dt, column_name_Duplicate) << Get As Matrix;                     
+                    row_numbers_Duplicate = Loc(column_data_Duplicate, target_value_Duplicate);                    
+
+                    //Get intersection
+                    Duplicate_G_result_1 = []; 
+
+                    For(j = 1, j <= N Items(row_numbers_SN), j++,
+                        For(k = 1, k <= N Items(row_numbers_Duplicate), k++,
+                            If(row_numbers_SN[j] == row_numbers_Duplicate[k],
+                                Insert Into(Duplicate_G_result_1, row_numbers_SN[j]);
+                                Break(); 
+                            );
+                        );
+                    );
+
+                    If( N Items(Duplicate_G_result_1) > 0,
+
+                        Duplicate_G_result_in = dt[Duplicate_G_result_1[1], "Duplicate_G"];                        
+                    ,
+                        Duplicate_G_result_in = "Missing"; 
+                    );
+
+                    if(is_pass,
+                        if(Duplicate_G_result_in == "Done",                    
+                            Column(dt, "Duplicate_G")[i] = "Excluded";                  
+                        );
+                        if(Duplicate_G_result_in == "Unclear",
+                            Column(dt, "Duplicate_G")[i] = "Done";
+                            Column(dt, "Duplicate_G")[Duplicate_G_result_1[1]] = "Excluded";
+                        );
+                    );
+                    if(is_fail,
+                        if(Duplicate_G_result_in == "Done",
+                            Column(dt, "Duplicate_G")[i] = "Excluded";
+                        );
+                        if(Duplicate_G_result_in == "Unclear",
+                            Column(dt, "Duplicate_G")[i] = "Unclear";
+                            Column(dt, "Duplicate_G")[Duplicate_G_result_1[1]] = "Excluded";
+                        );
+                    );
+                );
+
+                // Duplicate 3
+                If(duplicate_number == 3,
+                    column_name_SN = sn_col_name;
+                    target_value_SN = current_serial_G;
+                    column_data_SN = Column(dt, column_name_SN) << Get As Matrix;                    
+                    row_numbers_SN = Loc(column_data_SN, target_value_SN);                   
+
+                    column_name_Duplicate = "Duplicate";
+                    target_value_Duplicate = 2;
+                    column_data_Duplicate = Column(dt, column_name_Duplicate) << Get As Matrix;                    
+                    row_numbers_Duplicate = Loc(column_data_Duplicate, target_value_Duplicate);
+                   
+                    //Get intersection
+                    Duplicate_G_result_2 = []; 
+
+                    For(l = 1, l <= N Items(row_numbers_SN), l++,
+                        For(m = 1, m <= N Items(row_numbers_Duplicate), m++,
+                            If(row_numbers_SN[l] == row_numbers_Duplicate[m],
+                                Insert Into(Duplicate_G_result_2, row_numbers_SN[l]);
+                                Break(); 
+                            );
+                        );
+                    );
+                    If( N Items(Duplicate_G_result_2) > 0,
+                        Duplicate_G_result_in = dt[Duplicate_G_result_2[1], "Duplicate_G"];                        
+                    ,
+                        Duplicate_G_result_in = "Missing"; 
+                    );
+
+                    if(is_pass,
+                        if(Duplicate_G_result_in == "Done",
+                            Column(dt, "Duplicate_G")[i] = "Excluded";
+                        );
+                        if(Duplicate_G_result_in == "Unclear",
+                            Column(dt, "Duplicate_G")[i] = "Done";
+                            Column(dt, "Duplicate_G")[Duplicate_G_result_2[1]] = "Excluded";
+                        );
+                        if(Duplicate_G_result_in == "Excluded",
+                            Column(dt, "Duplicate_G")[i] = "Excluded";
+                        );
+                    );
+                    if(is_fail,
+                        if(Duplicate_G_result_in == "Done",
+                            Column(dt, "Duplicate_G")[i] = "Excluded";
+                        );
+                        if(Duplicate_G_result_in == "Unclear",
+                            Column(dt, "Duplicate_G")[i] = "Unclear";
+                            Column(dt, "Duplicate_G")[Duplicate_G_result_2[1]] = "Excluded";
+                        );
+                        if(Duplicate_G_result_in == "Excluded",
+                            Column(dt, "Duplicate_G")[i] = "Excluded";
+                        );
+                    );
+                );
+
+                // Duplicate > 3
+                If(duplicate_number > 3,
+                    Column(dt, "Duplicate_G")[i] = "Excluded";                    
+                );
+            );
+
+            // Excluded Rows Filter
+            ExcludedRows = {};
+            For(i = 1, i <= N Rows(dt), i++,
+                If(Column(dt, "Duplicate_G")[i] == "Excluded",
+                    Insert Into(ExcludedRows, i)
+                );
+            );
+
+            // If Excluded Rows found, exclude
+            If(N Items(ExcludedRows) > 0,
+                dt << Clear Select;
+                dt << Select Rows(ExcludedRows);
+                dt << Exclude;
+                Write("✅ Excluded ", N Items(ExcludedRows), " rows (sorted by date)");
+            ,
+                Write("✅ No Excluded rows found");
+            );
+            //***************************************************
+            nw << Close Window;
+        )
+    )
+);
+

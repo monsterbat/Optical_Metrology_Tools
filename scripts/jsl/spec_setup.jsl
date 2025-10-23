@@ -1,0 +1,81 @@
+// JMP Spec Setup JSL script
+// Editor : SC Hsiao
+// Update date : 2025/07/05
+// Version V 1.2
+// Description: Setup spec limits for currently active data table
+// Note: Requires data file to be opened first via "Open Data" button
+//---------------------------------------------------------------
+
+Names Default To Here(1);
+
+// 1. Use current active data table (no need to pick file)
+// Get the current data table
+dt = Current Data Table();
+
+// Check if there's an active data table
+If(Is Empty(dt),
+    New Window("Error", <<Modal,
+        V List Box(
+            Text Box("No data table is currently open. Please open a data file first."),
+            Button Box("OK", Current Window() << Close Window)
+        )
+    );
+    Stop();
+);
+
+// Display current data table information
+table_name = dt << Get Name;
+Write("✅ Processing data table: ", table_name);
+Write("   Setting up spec limits...");
+
+// =============================================================================
+// Spec Limits Configuration Section
+// This section will be replaced by the Python script with actual spec limits
+// =============================================================================
+
+// [SPEC_LIMITS_PLACEHOLDER]
+// Spec limits will be inserted here by the Python script
+
+// =============================================================================
+// End of Spec Limits Configuration
+// =============================================================================
+
+// Success message and summary
+success_count = 0;
+fail_count = 0;
+processed_variables = {};
+
+// Count successful spec settings (this will be updated by the Python script)
+// [SUCCESS_COUNT_PLACEHOLDER]
+
+// Show completion message
+If(success_count > 0,
+    message = "✅ Spec Setup completed successfully!" || Char(10) || Char(10);
+    message = message || "Data table: " || table_name || Char(10);
+    message = message || "Variables processed: " || Char(success_count) || Char(10);
+    
+    If(fail_count > 0,
+        message = message || "Failed: " || Char(fail_count) || Char(10);
+    );
+    
+    New Window("Spec Setup Complete", <<Modal,
+        V List Box(
+            Text Box(message),
+            Button Box("OK", Current Window() << Close Window)
+        )
+    );
+    
+    Write("✅ Spec Setup completed: ", success_count, " variables processed");
+,
+    New Window("Spec Setup Failed", <<Modal,
+        V List Box(
+            Text Box("❌ No spec limits were set. Please check your limits file."),
+            Button Box("OK", Current Window() << Close Window)
+        )
+    );
+    
+    Write("❌ Spec Setup failed: No variables processed");
+);
+
+
+

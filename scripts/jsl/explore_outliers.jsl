@@ -1,0 +1,90 @@
+// JMP Explore Outliers with Dynamic Variable Selection
+// Editor : SC Hsiao
+// Update date : 2025/07/09
+// Version V 1.2
+// Description: Analyze outliers from currently active data table
+// Note: Requires data file to be opened first via "Open Data" button
+//---------------------------------------------------------------
+
+// Step 0: Use current active data table (no need to pick file)
+// Get the current data table
+dt = Current Data Table();
+
+// Check if there's an active data table
+If(Is Empty(dt),
+    New Window("Error", <<Modal,
+        V List Box(
+            Text Box("No data table is currently open. Please open a data file first."),
+            Button Box("OK", Current Window() << Close Window)
+        )
+    );
+    Stop();
+);
+
+// Display current data table information
+table_name = dt << Get Name;
+Write("✅ Processing data table: ", table_name);
+Write("   Rows: ", N Rows(dt), ", Columns: ", N Col(dt));
+
+// Fetch all column names
+columnNames = {};
+For(i = 1, i <= N Col(dt), i++,
+	Insert Into(columnNames, Column(dt, i) << Get Name);
+);
+
+// Create a multi-selection list box (allow Shift/Ctrl selection)
+lb_columns = List Box(
+	columnNames,
+	<<Set Multiple Selection(1),
+	<<Set Width(400),
+	<<Set Height(300)
+);
+
+// Create GUI window
+nw = New Window("Outlier Analysis - " || table_name,
+	V List Box(
+		Text Box("Processing file: "),
+		Text Box(table_name),
+		// Text Box("Rows: " || Char(N Rows(dt)) || ", Columns: " || Char(N Col(dt))),
+		Spacer Box(Size(1, 10)),
+		Text Box("Please select columns to analyze for outliers:"),
+		lb_columns,
+		
+		Button Box("Run Outlier Analysis",
+			// Fetch selected column names
+			selected = lb_columns << Get Selected;
+			
+			// Check if any columns are selected
+			If(N Items(selected) == 0,
+				Throw("Please select at least one column for analysis");
+			);
+			
+			// Convert selected column names into actual JSL matrix
+			myVarsExpr = Parse("{:" || Concat Items(selected, ", :") || "}");
+			myVars = Eval(myVarsExpr);
+			
+			// Close selection window
+			nw << Close Window;
+			Run Outlier Analysis(myVars);
+		)
+	)
+);
+
+// Define outlier analysis function
+Run Outlier Analysis = Function({myVars},
+	// Build the Explore Outliers expression with selected variables
+	outlierAnalysis = Eval(
+		Substitute(
+			Expr(
+				Explore Outliers(
+					Y(_selectedVars_),
+					Quantile Range Outliers
+				)
+			),
+			Expr(_selectedVars_), myVars
+		)
+	);
+	
+	// Display the results
+	Show(outlierAnalysis);
+);

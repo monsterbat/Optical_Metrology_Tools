@@ -1,0 +1,123 @@
+// JMP correlation analysis JSL script
+// Editor : SC Hsiao
+// Update date : 2025/04/30
+// Version V 1.1
+//---------------------------------------------------------------
+
+// Step 1: Select file
+filePath = Pick File("Choose JMP file", {"JMP Files|jmp"});
+dt = Open(filePath);
+
+// Step 2: Fetch all column names
+columnNames = {};
+For(i = 1, i <= N Col(dt), i++,
+    Insert Into(columnNames, Column(dt, i) << Get Name);
+);
+
+// Step 3: Create two separate list boxes for X and Y selection
+lb_x = List Box(columnNames, <<Set Width(400), <<Set N Lines(10));
+lb_y = List Box(columnNames, <<Set Width(400), <<Set N Lines(10));
+
+// Step 4: Create UI window for correlation selection
+nw = New Window("Select X and Y for Correlation Plot",
+    H List Box(
+        V List Box(
+            Text Box("Please select X-axis column:"),
+            lb_x
+        ),
+        V List Box(
+            Text Box("Please select Y-axis column:"),
+            lb_y
+        )
+    ),
+    H List Box(
+        Button Box("Show the correlation",
+            x_col = lb_x << Get Selected;
+            y_col = lb_y << Get Selected;
+
+            If(N Items(x_col) == 0 | N Items(y_col) == 0,
+                Throw("Please select both X and Y columns");
+            );
+
+            // Create correlation graph (display only)
+            gb = dt << Graph Builder(
+                Size(600, 600),
+                Show Control Panel(0),
+                Variables(
+                    X(Eval(Column(x_col[1]))),
+                    Y(Eval(Column(y_col[1])))
+                ),
+                Elements(
+                    Points(X, Y, Legend(5)),
+                    Line Of Fit( X, Y, Legend( 6 ), R²( 1 ) )
+                ),
+                SendToReport(
+                    Dispatch({}, "graph title", 
+                    TextEditBox,
+                        {Set Text("Correlation: " || x_col[1] || " vs " || y_col[1])}
+                    ),
+                    Dispatch({}, "400", 
+                    LegenBox,
+                        {Visibility("Collapse")}
+                    ),
+                    Dispatch({}, "Graph Builder", FrameBox,
+                        {DispatchSeg( Text Seg( 1 ), {Font( Size( 30 ) )} )}
+                    )               
+                )
+            );
+        ),
+        Button Box("Show and save the correlation",
+            x_col = lb_x << Get Selected;
+            y_col = lb_y << Get Selected;
+
+            If(N Items(x_col) == 0 | N Items(y_col) == 0,
+                Throw("Please select both X and Y columns");
+            );
+
+            // Create correlation graph
+            gb = dt << Graph Builder(
+                Size(600, 600),
+                Show Control Panel(0),
+                Variables(
+                    X(Eval(Column(x_col[1]))),
+                    Y(Eval(Column(y_col[1])))
+                ),
+                Elements(
+                    Points(X, Y, Legend(5)),
+                    Line Of Fit( X, Y, Legend( 6 ), R²( 1 ) )
+                ),
+                SendToReport(
+                    Dispatch({}, "graph title", 
+                    TextEditBox,
+                        {Set Text("Correlation: " || x_col[1] || " vs " || y_col[1])}
+                    ),
+                    Dispatch({}, "400", 
+                    LegenBox,
+                        {Visibility("Collapse")}
+                    ),
+                    Dispatch({}, "Graph Builder", FrameBox,
+                        {DispatchSeg( Text Seg( 1 ), {Font( Size( 30 ) )} )}
+                    )               
+                )
+            );
+
+            // Save image to the same directory as the original file
+            // Extract directory path by finding the last "/" and taking everything before it
+            last_slash_pos = 0;
+            For(i = 1, i <= Length(filePath), i++,
+                If(Substr(filePath, i, 1) == "/",
+                    last_slash_pos = i;
+                );
+            );
+            file_dir = Substr(filePath, 1, last_slash_pos - 1);
+            
+            // Extract filename without extension for better naming
+            file_name_with_ext = Substr(filePath, last_slash_pos + 1);
+            file_name_base = Substitute(file_name_with_ext, ".jmp", "");
+            
+            save_path = file_dir || "/CorrelationPlot_" || file_name_base || "_" || x_col[1] || "_vs_" || y_col[1] || ".png";
+            Report(gb) << Save Picture(save_path);
+            Show("Graph saved: " || save_path);
+        )
+    )
+);

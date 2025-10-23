@@ -1,0 +1,3 @@
+// Choose data to analysis, you can select csv or jmp file
+filePath = Pick File("Choose data file", {"CSV Files|csv", "JMP Files|jmp"});
+Open(filePath);

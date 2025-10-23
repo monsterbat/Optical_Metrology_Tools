@@ -1,0 +1,95 @@
+// AICc Calculate JSL script - Simple Version
+// Editor : SC Hsiao
+// Update date : 2025/07/06
+// Version V 1.1
+//---------------------------------------------------------------
+
+// Step 1: Choose JMP file
+filePath = Pick File("Choose JMP file", {"JMP Files|jmp"});
+dt = Open(filePath);
+
+// Step 2: Get column names
+columnNames = {};
+For(i = 1, i <= N Col(dt), i++,
+	Insert Into(columnNames, Column(dt, i) << Get Name);
+);
+
+// Step 3: Create selection window
+lb_columns = List Box(
+	columnNames,
+	<<Set Max Selected(999),
+	<<Set Width(400),
+	<<Set Height(300)
+);
+
+nw = New Window("Select columns to analyze",
+	V List Box(
+		Text Box("Please select columns:"),
+		lb_columns,
+		Button Box("Calculate AICc",
+			selected = lb_columns << Get Selected;
+			nw << Close Window;
+			
+			Show("=== AICc Calculation Results ===");
+			
+			// For each selected column
+			For(col_idx = 1, col_idx <= N Items(selected), col_idx++,
+				col_name = selected[col_idx];
+				Show("Column: " || col_name);
+				Show("------------------------");
+				
+				// Test Normal distribution
+				Try(
+					dist_normal = dt << Distribution(Column(dt, col_name), Normal(Goodness of Fit(1)));
+					rep_normal = Report(dist_normal);
+					tbl_normal = rep_normal[TableBox(1)];
+					aicc_normal = tbl_normal[NumberColBox("AICc")] << Get(1);
+					Show("Normal: " || Char(aicc_normal));
+					dist_normal << Close Window;
+				,
+					Show("Normal: Failed");
+				);
+				
+				// Test Lognormal distribution
+				Try(
+					dist_lognormal = dt << Distribution(Column(dt, col_name), Lognormal(Goodness of Fit(1)));
+					rep_lognormal = Report(dist_lognormal);
+					tbl_lognormal = rep_lognormal[TableBox(1)];
+					aicc_lognormal = tbl_lognormal[NumberColBox("AICc")] << Get(1);
+					Show("Lognormal: " || Char(aicc_lognormal));
+					dist_lognormal << Close Window;
+				,
+					Show("Lognormal: Failed");
+				);
+				
+				// Test Weibull distribution
+				Try(
+					dist_weibull = dt << Distribution(Column(dt, col_name), Weibull(Goodness of Fit(1)));
+					rep_weibull = Report(dist_weibull);
+					tbl_weibull = rep_weibull[TableBox(1)];
+					aicc_weibull = tbl_weibull[NumberColBox("AICc")] << Get(1);
+					Show("Weibull: " || Char(aicc_weibull));
+					dist_weibull << Close Window;
+				,
+					Show("Weibull: Failed");
+				);
+				
+				// Test Gamma distribution
+				Try(
+					dist_gamma = dt << Distribution(Column(dt, col_name), Gamma(Goodness of Fit(1)));
+					rep_gamma = Report(dist_gamma);
+					tbl_gamma = rep_gamma[TableBox(1)];
+					aicc_gamma = tbl_gamma[NumberColBox("AICc")] << Get(1);
+					Show("Gamma: " || Char(aicc_gamma));
+					dist_gamma << Close Window;
+				,
+					Show("Gamma: Failed");
+				);
+				
+				Show(""); // Empty line
+			);
+			
+			Show("=== AICc Calculation Complete ===");
+		)
+	)
+);

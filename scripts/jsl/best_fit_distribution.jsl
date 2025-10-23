@@ -1,0 +1,8 @@
+﻿// Open Process Capability window, manually select columns GUI
+Eval(
+	Expr(
+		Process Capability(
+
+		)
+	)
+);

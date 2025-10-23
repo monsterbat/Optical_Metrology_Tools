@@ -1,0 +1,286 @@
+﻿// JMP Duplicate Process JSL Script
+// Editor: SC Hsiao
+// Update date : 2025/08/11
+// Version V 1.6
+// ============================================================================
+// PURPOSE: Remove duplicate records using AAB Rule (sorted by date)
+// ============================================================================
+
+Names Default To Here(1);
+
+// ============================================================================
+// PREDEFINED VALUES (Change these if needed)
+// ============================================================================
+sn_col_name = "SerialNumber";
+Judge_col_name = "OverallResult";
+date_col_name = "StartTime";
+pass_values = {"PASS"};
+fail_values = {"FAIL"};
+// ============================================================================
+
+// 1. Use current active data table (no need to pick file)
+// Get the current data table
+dt = Current Data Table();
+
+// Check if there's an active data table
+If(Is Empty(dt),
+    New Window("Error", <<Modal,
+        V List Box(
+            Text Box("No data table is currently open. Please open a data file first."),
+            Button Box("OK", Current Window() << Close Window)
+        )
+    );
+    Stop();
+);
+
+// Display current data table information
+table_name = dt << Get Name;
+Write("✅ Processing data table: ", table_name);
+Write("   Rows: ", N Rows(dt), ", Columns: ", N Col(dt));
+
+// Step 2: Fetch all column names
+columnNames = {};
+For(i = 1, i <= N Col(dt), i++,
+    Insert Into(columnNames, Column(dt, i) << Get Name);
+);
+
+// Validate predefined columns exist
+If(!Contains(columnNames, sn_col_name) | !Contains(columnNames, Judge_col_name) | !Contains(columnNames, date_col_name),
+    New Window("Error", <<Modal,
+        V List Box(
+            Text Box("One or more predefined columns not found in data table."),
+            Button Box("OK", Current Window() << Close Window)
+        )
+    );
+    Stop();
+);
+
+// Validate PASS/FAIL values exist in Judge column
+judge_col = Column(dt, Judge_col_name);
+unique_values = {};
+For(i = 1, i <= N Rows(dt), i++,
+    val = Char(judge_col[i]);
+    If(!Contains(unique_values, val),
+        Insert Into(unique_values, val);
+    );
+);
+
+If(!Contains(unique_values, "PASS") | !Contains(unique_values, "FAIL"),
+    New Window("Error", <<Modal,
+        V List Box(
+            Text Box("PASS or FAIL values not found in " || Judge_col_name || " column."),
+            Button Box("OK", Current Window() << Close Window)
+        )
+    );
+    Stop();
+);
+
+// Create new columns if not exist
+If(!Contains(dt << Get Column Names(), "Duplicate"),
+    dt << New Column("Duplicate", Numeric, Continuous);
+);
+
+If(!Contains(dt << Get Column Names(), "Duplicate_G"),
+    dt << New Column("Duplicate_G", Numeric, Continuous);
+);
+
+// Check for missing values in date column and handle accordingly
+date_col = Column(dt, date_col_name);
+missing_count = 0;
+For(i = 1, i <= N Rows(dt), i++,
+    If(Is Missing(date_col[i]),
+        missing_count++;
+    );
+);
+
+If(missing_count > 0,
+    Write("⚠️ Warning: Found ", missing_count, " missing values in ", date_col_name, " column");
+    Write("   Will use file order for records with missing dates");
+    
+    // Add row index column to preserve original order for missing dates
+    dt << New Column("Original_Row_Index", Numeric, Continuous);
+    For(i = 1, i <= N Rows(dt), i++,
+        dt[i, "Original_Row_Index"] = i;
+    );
+    
+    // Sort by SN, then Date (missing dates will go to end), then by original row index
+    dt << Sort(By(Column(dt, sn_col_name), Column(dt, date_col_name), Column(dt, "Original_Row_Index")), Replace Table);
+    
+    // Clean up temporary column
+    dt << Delete Columns("Original_Row_Index");
+,
+    // No missing values, sort normally by SN then Date
+    dt << Sort(By(Column(dt, sn_col_name), Column(dt, date_col_name)), Replace Table);
+);
+
+// Use associative array to track duplicates
+count_dict = Associative Array();
+
+For(i = 1, i <= N Rows(dt), i++,
+    current_serial = dt[i, sn_col_name];
+
+    If(Contains(count_dict, current_serial),   
+        count_dict[current_serial] += 1;
+    ,
+        count_dict[current_serial] = 1;
+    );
+    dt[i, "Duplicate"] = count_dict[current_serial];
+);
+
+//***************************************************
+// Duplicate_G column already created above
+
+For(i = 1, i <= N Rows(dt), i++,
+    current_serial_G = dt[i, sn_col_name];//
+    duplicate_number = dt[i, "Duplicate"];                
+    judge_val = Char(dt[i, Judge_col_name]);
+    
+    // Determine if current value is PASS or FAIL based on user selection
+    is_pass = Contains(pass_values, judge_val);
+    is_fail = Contains(fail_values, judge_val);
+
+    // Duplicate 1
+    If(duplicate_number ==1 & is_pass,
+        Column(dt, "Duplicate_G")[i] = "Done";
+
+    );
+    If(duplicate_number ==1 & is_fail,
+        Column(dt, "Duplicate_G")[i] = "Unclear";
+    ); 
+    // Duplicate 2               
+    If(duplicate_number == 2,
+        column_name_SN = sn_col_name;
+        target_value_SN = current_serial_G;
+        column_data_SN = Column(dt, column_name_SN) << Get As Matrix;                    
+        row_numbers_SN = Loc(column_data_SN, target_value_SN);                   
+
+        column_name_Duplicate = "Duplicate";
+        target_value_Duplicate = 1;
+        column_data_Duplicate = Column(dt, column_name_Duplicate) << Get As Matrix;                     
+        row_numbers_Duplicate = Loc(column_data_Duplicate, target_value_Duplicate);                    
+
+        //Get intersection
+        Duplicate_G_result_1 = []; 
+
+        For(j = 1, j <= N Items(row_numbers_SN), j++,
+            For(k = 1, k <= N Items(row_numbers_Duplicate), k++,
+                If(row_numbers_SN[j] == row_numbers_Duplicate[k],
+                    Insert Into(Duplicate_G_result_1, row_numbers_SN[j]);
+                    Break(); 
+                );
+            );
+        );
+
+        If( N Items(Duplicate_G_result_1) > 0,
+
+            Duplicate_G_result_in = dt[Duplicate_G_result_1[1], "Duplicate_G"];                        
+        ,
+            Duplicate_G_result_in = "Missing"; 
+        );
+
+        if(is_pass,
+            if(Duplicate_G_result_in == "Done",                    
+                Column(dt, "Duplicate_G")[i] = "Excluded";                  
+            );
+            if(Duplicate_G_result_in == "Unclear",
+                Column(dt, "Duplicate_G")[i] = "Done";
+                Column(dt, "Duplicate_G")[Duplicate_G_result_1[1]] = "Excluded";
+            );
+        );
+        if(is_fail,
+            if(Duplicate_G_result_in == "Done",
+                Column(dt, "Duplicate_G")[i] = "Excluded";
+            );
+            if(Duplicate_G_result_in == "Unclear",
+                Column(dt, "Duplicate_G")[i] = "Unclear";
+                Column(dt, "Duplicate_G")[Duplicate_G_result_1[1]] = "Excluded";
+            );
+        );
+    );
+
+    // Duplicate 3
+    If(duplicate_number == 3,
+        column_name_SN = sn_col_name;
+        target_value_SN = current_serial_G;
+        column_data_SN = Column(dt, column_name_SN) << Get As Matrix;                    
+        row_numbers_SN = Loc(column_data_SN, target_value_SN);                   
+
+        column_name_Duplicate = "Duplicate";
+        target_value_Duplicate = 2;
+        column_data_Duplicate = Column(dt, column_name_Duplicate) << Get As Matrix;                    
+        row_numbers_Duplicate = Loc(column_data_Duplicate, target_value_Duplicate);
+       
+        //Get intersection
+        Duplicate_G_result_2 = []; 
+
+        For(l = 1, l <= N Items(row_numbers_SN), l++,
+            For(m = 1, m <= N Items(row_numbers_Duplicate), m++,
+                If(row_numbers_SN[l] == row_numbers_Duplicate[m],
+                    Insert Into(Duplicate_G_result_2, row_numbers_SN[l]);
+                    Break(); 
+                );
+            );
+        );
+        If( N Items(Duplicate_G_result_2) > 0,
+            Duplicate_G_result_in = dt[Duplicate_G_result_2[1], "Duplicate_G"];                        
+        ,
+            Duplicate_G_result_in = "Missing"; 
+        );
+
+        if(is_pass,
+            if(Duplicate_G_result_in == "Done",
+                Column(dt, "Duplicate_G")[i] = "Excluded";
+            );
+            if(Duplicate_G_result_in == "Unclear",
+                Column(dt, "Duplicate_G")[i] = "Done";
+                Column(dt, "Duplicate_G")[Duplicate_G_result_2[1]] = "Excluded";
+            );
+            if(Duplicate_G_result_in == "Excluded",
+                Column(dt, "Duplicate_G")[i] = "Excluded";
+            );
+        );
+        if(is_fail,
+            if(Duplicate_G_result_in == "Done",
+                Column(dt, "Duplicate_G")[i] = "Excluded";
+            );
+            if(Duplicate_G_result_in == "Unclear",
+                Column(dt, "Duplicate_G")[i] = "Unclear";
+                Column(dt, "Duplicate_G")[Duplicate_G_result_2[1]] = "Excluded";
+            );
+            if(Duplicate_G_result_in == "Excluded",
+                Column(dt, "Duplicate_G")[i] = "Excluded";
+            );
+        );
+    );
+
+    // Duplicate > 3
+    If(duplicate_number > 3,
+        Column(dt, "Duplicate_G")[i] = "Excluded";                    
+    );
+);
+
+// Excluded Rows Filter
+ExcludedRows = {};
+For(i = 1, i <= N Rows(dt), i++,
+    If(Column(dt, "Duplicate_G")[i] == "Excluded",
+        Insert Into(ExcludedRows, i)
+    );
+);
+
+// If Excluded Rows found, exclude
+If(N Items(ExcludedRows) > 0,
+    dt << Clear Select;
+    dt << Select Rows(ExcludedRows);
+    dt << Exclude;
+    Write("✅ Excluded ", N Items(ExcludedRows), " rows (sorted by date)");
+,
+    Write("✅ No Excluded rows found");
+);
+
+// Clean up temporary columns after exclusion is complete
+Write("🧹 Cleaning up temporary columns...");
+dt << Delete Columns({"Duplicate", "Duplicate_G"});
+Write("✅ Temporary columns removed successfully");
+
+//***************************************************
+

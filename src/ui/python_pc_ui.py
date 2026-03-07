@@ -98,7 +98,7 @@ class PythonPCUI:
         
         # 顯示當前選擇的變數
         self.vars_label = tk.Label(frame, text="", font=("Arial", 10), 
-                                  fg="white", wraplength=600, anchor="w")
+                                  wraplength=600, anchor="w")
         self.vars_label.pack(fill="x", pady=(5, 0))
         
         self.update_variables_display()

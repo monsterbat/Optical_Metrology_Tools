@@ -198,6 +198,11 @@ class PCPreviewDialog:
                 aicc_results = self._calculate_aicc_for_variable(data)
                 self.aicc_results[variable] = aicc_results
                 
+                # 檢查是否有任何分佈擬合成功
+                if not aicc_results:
+                    print(f"   ⚠️ 變數 {variable} 所有分佈擬合都失敗，跳過")
+                    continue
+                
                 # 選擇最佳分布 (AICC最小)
                 best_dist = min(aicc_results.keys(), key=lambda k: aicc_results[k]['aicc'])
                 self.current_selections[variable] = best_dist
@@ -206,7 +211,20 @@ class PCPreviewDialog:
                 pc_result = self._calculate_pc_for_variable(variable, data, best_dist)
                 self.pc_results[variable] = pc_result
                 
-        print("✅ 預覽計算完成")
+        # 檢查是否有任何變數成功計算
+        if not self.pc_results:
+            print("⚠️ 警告：所有變數的分佈擬合都失敗了")
+            messagebox.showwarning(
+                "Warning", 
+                "All distribution fittings failed.\n\n"
+                "Possible reasons:\n"
+                "• Data contains non-positive values (required for LogNormal, Weibull, etc.)\n"
+                "• Data has zero variance (all values are the same)\n"
+                "• Data contains extreme outliers\n"
+                "• Insufficient data points"
+            )
+        else:
+            print("✅ 預覽計算完成")
         
     def _calculate_aicc_for_variable(self, data) -> Dict[str, Dict]:
         """為變數計算所有分布的AICC - 只使用我們的標準方法（JMP標準）"""

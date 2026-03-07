@@ -1,0 +1,122 @@
+# Python 相關
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+*.egg-info
+.installed.cfg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+bin/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+venv/
+.env/
+.venv/
+ENV/
+
+# PyInstaller 相關
+build/
+dist/
+#*.spec
+*.manifest
+*.toc
+
+# IDE 相關
+.cursor/
+.cursorrules
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# 作業系統相關
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# 日誌和暫存檔
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+logs/
+temp/
+tmp/
+
+# JMP 相關
+*.jmp
+*.jsl.bak
+*.jsl.tmp
+*.jsl~
+*.jsl.swp
+
+# 資料檔案（防止敏感量測數據意外上傳）
+*.xlsx
+*.csv
+*.numbers
+
+# 測試相關
+test_data/
+test/
+tests/
+testing/
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# 內部文件（SOP 等不公開文件）
+docs/
+
+# 專案特定忽略
+jmp_script/change_col_type.py
+jmp_script/test.py
+jmp_script/test.jsl
+jmp_script/backup.py
+jmp_script/backup.jsl
+
+# 打包和發布相關
+*.tar.gz
+*.zip
+*.rar
+*.7z
+*.exe
+*.dmg
+*.pkg
+
+# 其他
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+

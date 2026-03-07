@@ -67,6 +67,7 @@ desktop.ini
 logs/
 temp/
 tmp/
+docs/
 
 # JMP 相關
 *.jmp
@@ -79,6 +80,7 @@ tmp/
 *.xlsx
 *.csv
 *.numbers
+*.pdf
 
 # 測試相關
 test_data/

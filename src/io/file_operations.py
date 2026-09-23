@@ -1088,9 +1088,9 @@ def open_google_drive_file():
         url_entry = tk.Entry(input_window, width=80, font=("Arial", 10))
         url_entry.pack(pady=5, padx=20)
         
-        # 預填您提供的連結
-        sample_url = "https://drive.google.com/file/d/1XoIvi4AZ7VY8AVYoXlyncb41rzckZGwp/view?usp=drive_link"
-        url_entry.insert(0, sample_url)
+        # ⛔ 不預填任何真實連結:那會把某個人的雲端檔印在公開的程式碼裡,
+        #    而且下一個使用者要的是自己的檔,不是別人的。放格式範例就好。
+        url_entry.insert(0, "https://drive.google.com/file/d/FILE_ID/view?usp=sharing")
         
         # 狀態標籤
         status_label = tk.Label(input_window, text="", font=("Arial", 10))

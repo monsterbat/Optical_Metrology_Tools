@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""這個 repo 專用的提交閘門 —— 擋住「不該進公開 repo」的東西。
+
+為什麼需要它:`.gitignore` 只是「預設不要加」,⛔ 它擋不住 `git add -f`,
+也擋不住有人哪天改壞那幾行。而這個 repo 是公開的,一旦推上去就收不回來
+(舊提交仍然可以用完整 SHA 抓到)。
+
+兩道:
+  ① 路徑形狀 —— 量測資料、報表、二進位產物,一律不准進 git
+  ② 字詞 —— 清單讀 `.git/forbidden-words.txt`
+     ⛔ 清單刻意放在 .git 裡面:git 永遠不會追蹤 .git 底下的東西,
+        所以那些字本身不會因為這支閘門而被公開。
+
+⚠️ 閘門自己壞掉時「擋下來」而不是放行 —— 這裡的代價是「存不了檔」,
+   比「機密上了公開 repo」小太多。(跟共用那支的取捨方向刻意相反。)
+"""
+import os
+import re
+import subprocess
+import sys
+
+# ① 不管副檔名寫什麼,這些路徑形狀一律擋
+BLOCK_PATH = [
+    (re.compile(r"^test_data/"), "量測資料夾"),
+    (re.compile(r"^docs/"), "內部文件夾"),
+    (re.compile(r"^(temp|dist|build)/"), "產物資料夾"),
+    (re.compile(r"\.(jmp|xls|xlsx|csv|dat)$", re.I), "量測資料或報表檔"),
+    (re.compile(r"\.(png|jpg|jpeg|gif|bmp|tif|tiff|pdf|pptx|docx)$", re.I), "圖片或文件(可能是畫面截圖)"),
+]
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+GITDIR = subprocess.run(["git", "rev-parse", "--git-dir"],
+                        capture_output=True, text=True).stdout.strip() or ".git"
+WORDS_FILE = os.path.join(GITDIR, "forbidden-words.txt")
+
+
+def staged():
+    out = subprocess.run(["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+                         capture_output=True, text=True).stdout
+    return [p for p in out.splitlines() if p.strip()]
+
+
+def load_words():
+    try:
+        with open(WORDS_FILE, encoding="utf-8") as f:
+            return [l.strip() for l in f if l.strip() and not l.startswith("#")]
+    except OSError:
+        return None
+
+
+def main():
+    files = staged()
+    if not files:
+        return 0
+
+    bad = []
+    for p in files:
+        for rx, why in BLOCK_PATH:
+            if rx.search(p):
+                bad.append((p, why))
+                break
+
+    words = load_words()
+    if words is None:
+        print("⛔ 提交閘門:找不到禁詞清單 " + WORDS_FILE, file=sys.stderr)
+        print("   這個 repo 是公開的,清單不在就等於沒有閘門 → 擋下來。", file=sys.stderr)
+        return 1
+
+    rx = re.compile("|".join(re.escape(w) for w in words), re.I) if words else None
+    hits = []
+    if rx:
+        for p in files:
+            blob = subprocess.run(["git", "show", f":{p}"], capture_output=True).stdout
+            try:
+                text = blob.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            for i, line in enumerate(text.splitlines(), 1):
+                if rx.search(line):
+                    hits.append(f"{p}:{i}")
+
+    if not bad and not hits:
+        return 0
+
+    print("\n" + "=" * 62, file=sys.stderr)
+    print("⛔ 擋下來了。這個 repo 是公開的,下面的東西不能上去。", file=sys.stderr)
+    if bad:
+        print("\n  不該進 git 的檔:", file=sys.stderr)
+        for p, why in bad[:15]:
+            print(f"    · {p}   ({why})", file=sys.stderr)
+        if len(bad) > 15:
+            print(f"    …還有 {len(bad) - 15} 個", file=sys.stderr)
+    if hits:
+        print(f"\n  內容命中禁詞 {len(hits)} 處(只列位置,⛔ 不印內容):", file=sys.stderr)
+        for h in hits[:15]:
+            print(f"    · {h}", file=sys.stderr)
+    print("\n  怎麼辦:把那些檔從暫存區拿掉 → git restore --staged <檔>", file=sys.stderr)
+    print("  ⛔ 不要用 --no-verify 硬推。推上去就收不回來了。", file=sys.stderr)
+    print("=" * 62 + "\n", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as e:                      # 閘門自己壞掉 → 擋,不放行
+        print(f"⛔ 提交閘門自己出錯,為了安全擋下來:{e}", file=sys.stderr)
+        sys.exit(1)

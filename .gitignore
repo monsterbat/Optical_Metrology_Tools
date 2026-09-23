@@ -122,3 +122,8 @@ jmp_script/backup.jsl
 .env.test.local
 .env.production.local
 
+
+# 內部工作檔:只活在本機,⛔ 不進公開 repo
+CLAUDE.md
+CHANGELOG.md
+TODO.md
